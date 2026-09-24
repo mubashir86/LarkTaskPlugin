@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <rect width="40" height="40" rx="8" fill="#3370FF"/>
+  <!-- Card background -->
+  <rect x="8" y="8" width="24" height="24" rx="4" fill="#FFFFFF"/>
+  <!-- Lines/Tasks -->
+  <rect x="12" y="13" width="16" height="2.5" rx="1.25" fill="#3370FF"/>
+  <rect x="12" y="18.5" width="12" height="2" rx="1" fill="#8F959E"/>
+  <rect x="12" y="23" width="14" height="2" rx="1" fill="#8F959E"/>
+  <!-- Check mark dot -->
+  <circle cx="26" cy="24" r="3" fill="#34C759"/>
+  <path d="M24.5 24L25.5 25L27.5 23" stroke="#FFFFFF" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

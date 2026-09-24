@@ -1,0 +1,56 @@
+<idea-plugin>
+    <id>app.com.brd.plugin.lark</id>
+    <name>Lark Connector</name>
+    <vendor url="https://github.com/ubldigital">UBL Digital</vendor>
+    <category>Tools Integration</category>
+
+    <description><![CDATA[
+      <p><b>Lark Connector</b> seamlessly embeds your <b>Lark Base</b> or <b>Feishu</b> task board directly inside Android Studio and IntelliJ IDEA.</p>
+
+      <h3>Key Features</h3>
+      <ul>
+        <li><b>Embedded Chromium Engine</b>: Fast, responsive Lark Base task tracking right inside your IDE.</li>
+        <li><b>Configurable Workspace URL</b>: Easily set your custom Lark Base, Task Board, or Feed URL via <code>Settings -> Tools -> Lark Connector</code>.</li>
+        <li><b>Navigation Controls</b>: Quick access toolbar to refresh views, navigate home, open in external browser, or adjust settings.</li>
+        <li><b>Dark Theme Synergy</b>: Automatic Dark Theme parameter injection matching Android Studio's editor theme.</li>
+        <li><b>Zero Context Switching</b>: Manage, update, and track daily Android development tasks without leaving your code editor.</li>
+      </ul>
+
+      <h3>Getting Started</h3>
+      <ol>
+        <li>Install the plugin and open any project in Android Studio or IntelliJ.</li>
+        <li>Click the <b>Lark Connector</b> tool window tab on the left sidebar.</li>
+        <li>Configure your team's Lark Base URL in <b>Settings / Preferences -> Tools -> Lark Connector</b>.</li>
+      </ol>
+    ]]></description>
+
+    <change-notes><![CDATA[
+      <h4>Version 1.0.0</h4>
+      <ul>
+        <li>Initial release of Lark Connector plugin for JetBrains IDEs.</li>
+        <li>Added configurable Lark Base / Feishu URL settings panel.</li>
+        <li>Added JCEF Chromium browser integration with quick action toolbar (Refresh, Home, External Browser, Settings).</li>
+        <li>Added automatic dark mode URL parameter synchronization.</li>
+        <li>Added fallback support for environments without embedded JCEF.</li>
+      </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService
+            serviceImplementation="app.com.brd.plugin.lark.settings.LarkAppSettingsState"/>
+
+        <applicationConfigurable
+            parentId="tools"
+            instance="app.com.brd.plugin.lark.settings.LarkAppSettingsConfigurable"
+            id="app.com.brd.plugin.lark.settings.LarkAppSettingsConfigurable"
+            displayName="Lark Connector"/>
+
+        <toolWindow
+            id="Lark Connector"
+            anchor="left"
+            factoryClass="app.com.brd.plugin.lark.LarkToolWindowFactory"
+            icon="icons/larkIcon.svg"/>
+    </extensions>
+</idea-plugin>

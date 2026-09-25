@@ -1,4 +1,4 @@
-package app.com.brd.plugin.lark.settings
+package com.tss.lark.settings
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.DialogPanel

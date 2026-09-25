@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>app.com.brd.plugin.lark</id>
+    <id>com.tss.lark</id>
     <name>Lark Connector</name>
     <vendor url="https://github.com/ubldigital">UBL Digital</vendor>
     <category>Tools Integration</category>
@@ -42,18 +42,18 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationService
-            serviceImplementation="app.com.brd.plugin.lark.settings.LarkAppSettingsState"/>
+            serviceImplementation="com.tss.lark.settings.LarkAppSettingsState"/>
 
         <applicationConfigurable
             parentId="tools"
-            instance="app.com.brd.plugin.lark.settings.LarkAppSettingsConfigurable"
-            id="app.com.brd.plugin.lark.settings.LarkAppSettingsConfigurable"
+            instance="com.tss.lark.settings.LarkAppSettingsConfigurable"
+            id="com.tss.lark.settings.LarkAppSettingsConfigurable"
             displayName="Lark Connector"/>
 
         <toolWindow
             id="Lark Connector"
             anchor="left"
-            factoryClass="app.com.brd.plugin.lark.LarkToolWindowFactory"
+            factoryClass="com.tss.lark.LarkToolWindowFactory"
             icon="icons/larkIcon.svg"/>
     </extensions>
 </idea-plugin>

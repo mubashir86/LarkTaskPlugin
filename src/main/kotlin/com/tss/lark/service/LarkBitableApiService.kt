@@ -1,12 +1,12 @@
-package app.com.brd.plugin.lark.service
+package com.tss.lark.service
 
-import app.com.brd.plugin.lark.model.LarkFieldInfo
-import app.com.brd.plugin.lark.model.LarkFieldOption
-import app.com.brd.plugin.lark.model.LarkRecord
-import app.com.brd.plugin.lark.model.LarkTableInfo
-import app.com.brd.plugin.lark.model.LarkTaskItem
-import app.com.brd.plugin.lark.settings.LarkAppSettingsState
-import app.com.brd.plugin.lark.settings.SavedLarkBase
+import com.tss.lark.model.LarkFieldInfo
+import com.tss.lark.model.LarkFieldOption
+import com.tss.lark.model.LarkRecord
+import com.tss.lark.model.LarkTableInfo
+import com.tss.lark.model.LarkTaskItem
+import com.tss.lark.settings.LarkAppSettingsState
+import com.tss.lark.settings.SavedLarkBase
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.intellij.openapi.components.Service
@@ -98,7 +98,6 @@ class LarkBitableApiService {
         }
 
         try {
-            // First, test connection against /tables endpoint (validates appToken + token without assuming tableId)
             val tablesUrl = "https://open.larksuite.com/open-apis/bitable/v1/apps/$appToken/tables"
             val conn = URL(tablesUrl).openConnection() as HttpURLConnection
             conn.requestMethod = "GET"

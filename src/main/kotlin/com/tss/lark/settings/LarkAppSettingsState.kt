@@ -1,4 +1,4 @@
-package app.com.brd.plugin.lark.settings
+package com.tss.lark.settings
 
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -17,7 +17,7 @@ data class SavedLarkBase(
 
 @Service(Service.Level.APP)
 @State(
-    name = "app.com.brd.plugin.lark.settings.LarkAppSettingsState",
+    name = "com.tss.lark.settings.LarkAppSettingsState",
     storages = [Storage("LarkTaskSettings.xml")]
 )
 class LarkAppSettingsState : PersistentStateComponent<LarkAppSettingsState> {

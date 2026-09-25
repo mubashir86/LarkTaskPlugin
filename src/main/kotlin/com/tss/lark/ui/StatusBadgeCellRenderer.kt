@@ -1,4 +1,4 @@
-package app.com.brd.plugin.lark.ui
+package com.tss.lark.ui
 
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
@@ -46,7 +46,6 @@ class StatusBadgeCellRenderer : TableCellRenderer {
             val width = size.width
             val height = size.height
 
-            // Center badge box
             val badgeWidth = Math.min(width - 8, 95)
             val x = (width - badgeWidth) / 2
             val y = (height - 18) / 2

@@ -1,4 +1,4 @@
-package app.com.brd.plugin.lark.model
+package com.tss.lark.model
 
 data class LarkTableInfo(
     val tableId: String,

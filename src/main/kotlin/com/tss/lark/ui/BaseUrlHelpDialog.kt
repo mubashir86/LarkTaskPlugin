@@ -1,4 +1,4 @@
-package app.com.brd.plugin.lark.ui
+package com.tss.lark.ui
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project

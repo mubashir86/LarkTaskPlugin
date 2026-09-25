@@ -1,6 +1,6 @@
-package app.com.brd.plugin.lark.ui
+package com.tss.lark.ui
 
-import app.com.brd.plugin.lark.model.LarkFieldInfo
+import com.tss.lark.model.LarkFieldInfo
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo

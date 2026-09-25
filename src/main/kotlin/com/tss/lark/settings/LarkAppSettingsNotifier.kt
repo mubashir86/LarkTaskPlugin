@@ -1,4 +1,4 @@
-package app.com.brd.plugin.lark.settings
+package com.tss.lark.settings
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.util.messages.Topic

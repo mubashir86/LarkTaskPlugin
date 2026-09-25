@@ -1,13 +1,15 @@
 package app.com.brd.plugin.lark
 
-import app.com.brd.plugin.lark.model.LarkTaskItem
+import app.com.brd.plugin.lark.model.LarkFieldInfo
+import app.com.brd.plugin.lark.model.LarkRecord
+import app.com.brd.plugin.lark.model.LarkTableInfo
+import app.com.brd.plugin.lark.service.LarkAuthResult
 import app.com.brd.plugin.lark.service.LarkBitableApiService
 import app.com.brd.plugin.lark.settings.LarkAppSettingsConfigurable
 import app.com.brd.plugin.lark.settings.LarkAppSettingsNotifier
 import app.com.brd.plugin.lark.settings.LarkAppSettingsState
 import app.com.brd.plugin.lark.ui.BaseUrlHelpDialog
-import app.com.brd.plugin.lark.ui.CreateTaskDialog
-import app.com.brd.plugin.lark.ui.StatusBadgeCellRenderer
+import app.com.brd.plugin.lark.ui.DynamicCreateRecordDialog
 import app.com.brd.plugin.lark.ui.TokenHelpDialog
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
@@ -28,7 +30,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.table.JBTable
@@ -39,6 +40,8 @@ import java.awt.Color
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -49,6 +52,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.DefaultTableModel
@@ -79,55 +83,65 @@ class LarkTaskPanel(private val project: Project) {
         font = font.deriveFont(Font.PLAIN, 12f)
         isVisible = false
     }
+    private val step1CancelBtn = JButton("Cancel (Return to Dashboard)", AllIcons.Actions.Cancel).apply {
+        isVisible = false
+    }
 
     // Step 2 components
     private val step2TokenInput = JBPasswordField()
     private val step2FeedbackLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 12f) }
-    private val step2FeedbackPanel = JPanel(FlowLayout(FlowLayout.CENTER)).apply {
+    private val step2FeedbackPanel = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
         border = JBUI.Borders.empty(6)
         isVisible = false
     }
+    private val step2CancelBtn = JButton("Cancel (Return to Dashboard)", AllIcons.Actions.Cancel).apply {
+        isVisible = false
+    }
+    private val copyErrorBtn = JButton("Copy Error Log", AllIcons.Actions.Copy).apply { isVisible = false }
+    private val viewErrorDetailsBtn = JButton("View Response Details", AllIcons.Actions.ShowCode).apply { isVisible = false }
+    private var lastAuthResult: LarkAuthResult? = null
 
     // Success Card components
     private val successBaseTokenLabel = JBLabel()
     private val successTableIdLabel = JBLabel()
 
+    // Dashboard State
+    private var currentTables = listOf<LarkTableInfo>()
+    private var activeTableId: String = ""
+    private var currentFields = listOf<LarkFieldInfo>()
+    private var currentRecords = listOf<LarkRecord>()
+    private var filteredRecords = listOf<LarkRecord>()
+    private var selectedRecord: LarkRecord? = null
+
+    private var autoRefreshTimer: javax.swing.Timer? = null
+
     // Dashboard View components
     private val dashboardPanel = JPanel(BorderLayout())
-    private var allTasks = listOf<LarkTaskItem>()
-    private var filteredTasks = listOf<LarkTaskItem>()
 
-    // Base Selector & Filters
+    // Base & Table Selector Controls
     private val baseSelectorCombo = JComboBox<String>()
-    private val typeCombo = JComboBox(arrayOf("All Types", "Bug", "Task", "Story", "Feature"))
-    private val priorityCombo = JComboBox(arrayOf("All Priorities", "Critical", "High", "Medium", "Low"))
-    private val statusCombo = JComboBox(arrayOf("All Statuses", "Problem", "In Progress", "Done", "To Do"))
-    private val assigneeCombo = JComboBox(arrayOf("ANY", "Mubashir", "Haris Nazir", "Zoha Arif", "Muhammad A..."))
+    private val tableSelectorCombo = JComboBox<String>()
+    private val autoRefreshCombo = JComboBox(arrayOf("Auto Refresh: Off", "Every 1 Min", "Every 5 Min", "Every 10 Min"))
     private val searchField = SearchTextField(false)
-    private val boardCombo = JComboBox(arrayOf("Main Table", "Monthly View", "Tasks/Assignee"))
     private val refreshButton = JButton("Refresh", AllIcons.Actions.Refresh)
     private val createButton = JButton("+ Add Record", AllIcons.General.Add)
     private val addBaseButton = JButton("+ Add Base Sheet", AllIcons.General.Add)
     private val disconnectButton = JButton("Disconnect", AllIcons.Actions.Exit)
 
     // Table
-    private val columnNames = arrayOf("Key", "Type", "Summary", "Status", "Assignee", "Priority")
-    private val tableModel = object : DefaultTableModel(columnNames, 0) {
-        override fun isCellEditable(row: Int, column: Int): Boolean = false
-    }
+    private val tableModel = DefaultTableModel()
     private val table = JBTable(tableModel)
 
-    // Pagination
-    private val paginationLabel = JBLabel("Showing 0 issues (Page 1)")
-    private val prevPageBtn = JButton("<").apply { isEnabled = false }
-    private val nextPageBtn = JButton(">").apply { isEnabled = false }
+    // Status Label
+    private val paginationLabel = JBLabel("Ready")
 
     // Detail Panel
     private val detailCardLayout = CardLayout()
     private val detailContainer = JPanel(detailCardLayout)
 
     private val emptyDetailPanel = JPanel(BorderLayout()).apply {
-        val label = JBLabel("Select an issue to view details", SwingConstants.CENTER).apply {
+        val label = JBLabel("Select a record to view details", SwingConstants.CENTER).apply {
             foreground = JBUI.CurrentTheme.Label.disabledForeground()
             font = font.deriveFont(Font.PLAIN, 13f)
         }
@@ -137,18 +151,10 @@ class LarkTaskPanel(private val project: Project) {
     private val activeDetailPanel = JPanel(BorderLayout())
     private val detailTitleLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD, 15f) }
     private val detailKeyLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD, 12f) }
-    private val detailTypeLabel = JBLabel()
-    private val detailStatusLabel = JBLabel()
-    private val detailPriorityLabel = JBLabel()
-    private val detailAssigneeLabel = JBLabel()
-    private val detailDescriptionArea = JBTextArea().apply {
-        isEditable = false
-        lineWrap = true
-        wrapStyleWord = true
+    private val detailFieldsBox = JBPanel<JBPanel<*>>().apply {
+        layout = BoxLayout(this, BoxLayout.Y_AXIS)
         border = JBUI.Borders.empty(8)
     }
-
-    private var selectedTask: LarkTaskItem? = null
 
     init {
         setupDashboardUI()
@@ -168,8 +174,11 @@ class LarkTaskPanel(private val project: Project) {
     }
 
     private fun checkAuthState() {
-        val state = LarkAppSettingsState.getInstance()
-        if (apiService.isConnected()) {
+        val connected = apiService.isConnected()
+        step1CancelBtn.isVisible = connected
+        step2CancelBtn.isVisible = connected
+
+        if (connected) {
             updateBaseSelectorDropdown()
             rootCardLayout.show(rootPanel, "DASHBOARD_CARD")
             loadDashboardData()
@@ -239,9 +248,14 @@ class LarkTaskPanel(private val project: Project) {
             font = font.deriveFont(Font.BOLD, 13f)
         }
 
-        // Pressing Enter triggers Continue
         step1UrlInput.addActionListener {
             continueBtn.doClick()
+        }
+
+        step1CancelBtn.addActionListener {
+            if (apiService.isConnected()) {
+                rootCardLayout.show(rootPanel, "DASHBOARD_CARD")
+            }
         }
 
         continueBtn.addActionListener {
@@ -253,12 +267,20 @@ class LarkTaskPanel(private val project: Project) {
             } else {
                 step1ErrorLabel.isVisible = false
                 step1BaseUrl = url
+                if (String(step2TokenInput.password).isBlank()) {
+                    val savedToken = LarkAppSettingsState.getInstance().userToken
+                    if (savedToken.isNotBlank()) {
+                        step2TokenInput.text = savedToken
+                    }
+                }
+                step2CancelBtn.isVisible = apiService.isConnected()
                 rootCardLayout.show(rootPanel, "AUTH_STEP_2")
             }
         }
 
-        val btnRow = JPanel(FlowLayout(FlowLayout.CENTER))
+        val btnRow = JPanel(FlowLayout(FlowLayout.CENTER, 8, 4))
         btnRow.add(continueBtn)
+        btnRow.add(step1CancelBtn)
 
         formCard.add(urlLabelRow)
         formCard.add(Box.createVerticalStrut(4))
@@ -310,7 +332,7 @@ class LarkTaskPanel(private val project: Project) {
             BorderFactory.createEtchedBorder(),
             JBUI.Borders.empty(16)
         )
-        formCard.maximumSize = Dimension(520, 320)
+        formCard.maximumSize = Dimension(520, 360)
 
         val tokenLabel = JBLabel("Personal access token:").apply { font = font.deriveFont(Font.BOLD) }
         step2TokenInput.emptyText.text = "pat_xxxxxxxxxxxxxxxxxxxxxxxx"
@@ -325,7 +347,10 @@ class LarkTaskPanel(private val project: Project) {
         )
 
         val guideHeading = JBLabel("Where do I get my token?").apply { font = font.deriveFont(Font.BOLD, 12f) }
-        val guideText = JBLabel("<html><b>1.</b> Open Lark Developer Console (open.larksuite.com/app).<br/><b>2.</b> Select your App, go to <b>Permissions & Scopes</b>, and add <code>bitable:app</code>.<br/><b>3.</b> Copy your <b>User Access Token</b> from Test Notes / Credentials and paste it above.</html>").apply {
+        val guideText = JBLabel("<html><b>1.</b> Open Lark Developer Console (open.larksuite.com/app).<br/>" +
+                "<b>2.</b> Select your App, go to <b>Permissions & Scopes</b>, and add <code>bitable:app</code>.<br/>" +
+                "<b>3.</b> Copy your <b>Tenant Access Token</b> (<code>t-...</code>) or <b>User Access Token</b> (<code>u-...</code>) from Test Notes / API Explorer and paste it above.<br/>" +
+                "<i>💡 Note: If Personal/User Token gives 400 error (e.g. App is 'Pending release'), copy a Tenant Access Token (t-...).</i></html>").apply {
             foreground = JBUI.CurrentTheme.Label.disabledForeground()
         }
 
@@ -339,9 +364,16 @@ class LarkTaskPanel(private val project: Project) {
             font = font.deriveFont(Font.BOLD, 13f)
         }
 
-        step2FeedbackPanel.add(step2FeedbackLabel)
+        val feedbackTextRow = JPanel(FlowLayout(FlowLayout.CENTER))
+        feedbackTextRow.add(step2FeedbackLabel)
 
-        // Pressing Enter inside password field triggers test connection
+        val feedbackActionRow = JPanel(FlowLayout(FlowLayout.CENTER, 8, 2))
+        feedbackActionRow.add(copyErrorBtn)
+        feedbackActionRow.add(viewErrorDetailsBtn)
+
+        step2FeedbackPanel.add(feedbackTextRow)
+        step2FeedbackPanel.add(feedbackActionRow)
+
         step2TokenInput.addActionListener {
             testConnectBtn.doClick()
         }
@@ -350,23 +382,72 @@ class LarkTaskPanel(private val project: Project) {
             rootCardLayout.show(rootPanel, "AUTH_STEP_1")
         }
 
+        step2CancelBtn.addActionListener {
+            if (apiService.isConnected()) {
+                rootCardLayout.show(rootPanel, "DASHBOARD_CARD")
+            }
+        }
+
         tokenHelpBtn.addActionListener {
             TokenHelpDialog(project).show()
+        }
+
+        copyErrorBtn.addActionListener {
+            lastAuthResult?.let { res ->
+                val logText = if (res.detailLog.isNotBlank()) res.detailLog else res.message
+                val selection = StringSelection(logText)
+                Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, selection)
+                Messages.showInfoMessage(project, "Error log copied to system clipboard!", "Lark Connector")
+            }
+        }
+
+        viewErrorDetailsBtn.addActionListener {
+            lastAuthResult?.let { res ->
+                val details = buildString {
+                    append("HTTP Status: ").append(res.httpCode).append("\n\n")
+                    append("Message:\n").append(res.message).append("\n\n")
+                    if (res.rawResponseBody.isNotBlank()) {
+                        append("Raw Response Body:\n").append(res.rawResponseBody).append("\n\n")
+                    }
+                    if (res.detailLog.isNotBlank()) {
+                        append("Detail Request Log:\n").append(res.detailLog)
+                    }
+                }
+                Messages.showMultilineInputDialog(project, "Lark Connection Diagnostics Log", "Lark API Response Details", details, null, null)
+            }
         }
 
         testConnectBtn.addActionListener {
             val token = String(step2TokenInput.password).trim()
             val state = LarkAppSettingsState.getInstance()
 
-            val testResult = apiService.testConnection(step1BaseUrl, token, state.appId, state.appSecret)
+            testConnectBtn.isEnabled = false
+            testConnectBtn.text = "Testing connection..."
+            step2FeedbackLabel.text = "⏳ Connecting to Lark Base API..."
+            step2FeedbackLabel.foreground = JBUI.CurrentTheme.Label.foreground()
+            step2FeedbackPanel.isVisible = true
+            copyErrorBtn.isVisible = false
+            viewErrorDetailsBtn.isVisible = false
 
-            if (testResult.isSuccess) {
-                showStep2Feedback("✅ Connection successful!", true)
-                successBaseTokenLabel.text = testResult.appToken
-                successTableIdLabel.text = testResult.tableId
-                rootCardLayout.show(rootPanel, "AUTH_SUCCESS")
-            } else {
-                showStep2Feedback("❌ ${testResult.message}", false)
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val testResult = apiService.testConnection(step1BaseUrl, token, state.appId, state.appSecret)
+
+                SwingUtilities.invokeLater {
+                    testConnectBtn.isEnabled = true
+                    testConnectBtn.text = "Connect & Test Workspace"
+                    lastAuthResult = testResult
+
+                    if (testResult.isSuccess) {
+                        showStep2Feedback("✅ Connection successful!", true)
+                        successBaseTokenLabel.text = testResult.appToken
+                        successTableIdLabel.text = testResult.tableId
+                        rootCardLayout.show(rootPanel, "AUTH_SUCCESS")
+                    } else {
+                        showStep2Feedback("❌ ${testResult.message}", false)
+                        copyErrorBtn.isVisible = true
+                        viewErrorDetailsBtn.isVisible = true
+                    }
+                }
             }
         }
 
@@ -376,6 +457,7 @@ class LarkTaskPanel(private val project: Project) {
         val secondaryBtnRow = JPanel(FlowLayout(FlowLayout.CENTER, 8, 4))
         secondaryBtnRow.add(backBtn)
         secondaryBtnRow.add(tokenHelpBtn)
+        secondaryBtnRow.add(step2CancelBtn)
 
         formCard.add(tokenLabel)
         formCard.add(Box.createVerticalStrut(4))
@@ -470,7 +552,8 @@ class LarkTaskPanel(private val project: Project) {
     }
 
     private fun showStep2Feedback(message: String, isSuccess: Boolean) {
-        step2FeedbackLabel.text = message
+        val formattedMsg = "<html><body style='width: 380px'>" + message.replace("\n", "<br/>") + "</body></html>"
+        step2FeedbackLabel.text = formattedMsg
         step2FeedbackLabel.foreground = if (isSuccess) JBColor(Color(35, 130, 70), Color(45, 150, 80)) else JBColor(Color(180, 50, 50), Color(200, 60, 60))
         step2FeedbackPanel.isVisible = true
         rootPanel.revalidate()
@@ -497,25 +580,16 @@ class LarkTaskPanel(private val project: Project) {
         topPanel.layout = BoxLayout(topPanel, BoxLayout.Y_AXIS)
         topPanel.border = JBUI.Borders.empty(8)
 
-        // Filter Bar 1
         val filterRow1 = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4))
         filterRow1.add(JBLabel("Base:"))
         filterRow1.add(baseSelectorCombo)
-        filterRow1.add(JBLabel("Type:"))
-        filterRow1.add(typeCombo)
-        filterRow1.add(JBLabel("Priority:"))
-        filterRow1.add(priorityCombo)
-        filterRow1.add(JBLabel("Status:"))
-        filterRow1.add(statusCombo)
-        filterRow1.add(JBLabel("Assignee:"))
-        filterRow1.add(assigneeCombo)
+        filterRow1.add(JBLabel("Table:"))
+        filterRow1.add(tableSelectorCombo)
         filterRow1.add(searchField)
         filterRow1.add(refreshButton)
 
-        // Filter Bar 2
         val filterRow2 = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4))
-        filterRow2.add(JBLabel("Table:"))
-        filterRow2.add(boardCombo)
+        filterRow2.add(autoRefreshCombo)
         filterRow2.add(createButton)
         filterRow2.add(addBaseButton)
         filterRow2.add(disconnectButton)
@@ -523,32 +597,21 @@ class LarkTaskPanel(private val project: Project) {
         topPanel.add(filterRow1)
         topPanel.add(filterRow2)
 
-        // Configure Table
         table.selectionModel.selectionMode = ListSelectionModel.SINGLE_SELECTION
         table.rowHeight = 28
-        table.setShowGrid(false)
-        table.intercellSpacing = Dimension(0, 0)
-
-        table.columnModel.getColumn(3).cellRenderer = StatusBadgeCellRenderer()
-        table.columnModel.getColumn(0).preferredWidth = 80
-        table.columnModel.getColumn(1).preferredWidth = 60
-        table.columnModel.getColumn(2).preferredWidth = 260
-        table.columnModel.getColumn(3).preferredWidth = 110
-        table.columnModel.getColumn(4).preferredWidth = 100
-        table.columnModel.getColumn(5).preferredWidth = 70
+        table.setShowGrid(true)
+        table.intercellSpacing = Dimension(1, 1)
 
         val scrollPane = JBScrollPane(table)
 
         setupDetailPanel()
 
-        val splitter = JBSplitter(false, 0.65f)
+        val splitter = JBSplitter(true, 0.55f)
         splitter.firstComponent = scrollPane
         splitter.secondComponent = detailContainer
 
         val paginationPanel = JPanel(FlowLayout(FlowLayout.CENTER, 8, 4))
-        paginationPanel.add(prevPageBtn)
         paginationPanel.add(paginationLabel)
-        paginationPanel.add(nextPageBtn)
 
         val toolbar = createToolbar()
         val northContainer = JPanel(BorderLayout())
@@ -559,12 +622,10 @@ class LarkTaskPanel(private val project: Project) {
         dashboardPanel.add(splitter, BorderLayout.CENTER)
         dashboardPanel.add(paginationPanel, BorderLayout.SOUTH)
 
-        // Event Listeners
         baseSelectorCombo.addActionListener {
             val selectedIndex = baseSelectorCombo.selectedIndex
             val state = LarkAppSettingsState.getInstance()
             if (selectedIndex == state.savedBases.size) {
-                // Clicked "+ Connect Another Base Sheet..."
                 step1UrlInput.text = ""
                 step2TokenInput.text = ""
                 rootCardLayout.show(rootPanel, "AUTH_STEP_1")
@@ -574,11 +635,18 @@ class LarkTaskPanel(private val project: Project) {
             }
         }
 
-        val filterListener = java.awt.event.ActionListener { applyFilters() }
-        typeCombo.addActionListener(filterListener)
-        priorityCombo.addActionListener(filterListener)
-        statusCombo.addActionListener(filterListener)
-        assigneeCombo.addActionListener(filterListener)
+        tableSelectorCombo.addActionListener {
+            val selectedIndex = tableSelectorCombo.selectedIndex
+            if (selectedIndex in currentTables.indices) {
+                val selectedTable = currentTables[selectedIndex]
+                if (selectedTable.tableId != activeTableId) {
+                    activeTableId = selectedTable.tableId
+                    val state = LarkAppSettingsState.getInstance()
+                    state.tableId = activeTableId
+                    loadTableRecords(activeTableId)
+                }
+            }
+        }
 
         searchField.textEditor.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent) = applyFilters()
@@ -588,6 +656,25 @@ class LarkTaskPanel(private val project: Project) {
 
         refreshButton.addActionListener { loadDashboardData() }
 
+        autoRefreshCombo.addActionListener {
+            val selectedIndex = autoRefreshCombo.selectedIndex
+            autoRefreshTimer?.stop()
+            val intervalMs = when (selectedIndex) {
+                1 -> 60_000
+                2 -> 300_000
+                3 -> 600_000
+                else -> 0
+            }
+            if (intervalMs > 0) {
+                autoRefreshTimer = javax.swing.Timer(intervalMs) {
+                    if (activeTableId.isNotBlank()) {
+                        loadTableRecords(activeTableId)
+                    }
+                }
+                autoRefreshTimer?.start()
+            }
+        }
+
         addBaseButton.addActionListener {
             step1UrlInput.text = ""
             step2TokenInput.text = ""
@@ -596,6 +683,7 @@ class LarkTaskPanel(private val project: Project) {
 
         disconnectButton.addActionListener {
             if (Messages.showYesNoDialog(project, "Disconnect from all connected Lark Base workspaces?", "Disconnect Accounts", Messages.getQuestionIcon()) == Messages.YES) {
+                autoRefreshTimer?.stop()
                 apiService.disconnect()
                 LarkAppSettingsNotifier.notifySettingsChanged()
                 checkAuthState()
@@ -603,27 +691,53 @@ class LarkTaskPanel(private val project: Project) {
         }
 
         createButton.addActionListener {
-            val dialog = CreateTaskDialog(project)
+            val currentTableName = currentTables.find { it.tableId == activeTableId }?.name ?: "Active Table"
+
+            val personFieldNames = currentFields.filter { it.type == 11 }.map { it.fieldName }
+            val existingPersons = mutableSetOf<String>()
+            for (rec in currentRecords) {
+                for (fieldName in personFieldNames) {
+                    val rawVal = rec.fields[fieldName]
+                    val formattedName = formatFieldValue(rawVal)
+                    if (formattedName.isNotBlank()) {
+                        formattedName.split(",").forEach { name ->
+                            val trimmed = name.trim()
+                            if (trimmed.isNotEmpty()) existingPersons.add(trimmed)
+                        }
+                    }
+                }
+            }
+
+            val dialog = DynamicCreateRecordDialog(project, currentTableName, currentFields, existingPersons.toList())
             if (dialog.showAndGet()) {
-                val newTask = apiService.addTask(
-                    type = dialog.typeCombo.selectedItem?.toString() ?: "Bug",
-                    summary = dialog.summaryField.text.trim().ifEmpty { "New Lark Task" },
-                    status = dialog.statusCombo.selectedItem?.toString() ?: "To Do",
-                    assignee = dialog.assigneeField.text.trim().ifEmpty { "Unassigned" },
-                    priority = dialog.priorityCombo.selectedItem?.toString() ?: "Medium",
-                    description = dialog.descriptionField.text.trim()
-                )
-                loadDashboardData()
-                selectTaskInTable(newTask)
+                val fieldsMap = dialog.getRecordFields()
+                if (fieldsMap.isNotEmpty()) {
+                    val state = LarkAppSettingsState.getInstance()
+                    paginationLabel.text = "⏳ Creating record on Lark Base..."
+                    createButton.isEnabled = false
+                    ApplicationManager.getApplication().executeOnPooledThread {
+                        val res = apiService.createRecord(state.appToken, activeTableId, state.userToken, fieldsMap)
+                        SwingUtilities.invokeLater {
+                            createButton.isEnabled = true
+                            if (res.isSuccess) {
+                                loadTableRecords(activeTableId)
+                            } else {
+                                val rawErr = res.exceptionOrNull()?.message ?: "Failed to create record"
+                                paginationLabel.text = "❌ Record creation failed."
+                                Messages.showErrorDialog(project, rawErr, "Lark Record Creation Failed")
+                            }
+                        }
+                    }
+                }
             }
         }
 
         table.selectionModel.addListSelectionListener { e ->
             if (!e.valueIsAdjusting) {
                 val selectedRow = table.selectedRow
-                if (selectedRow >= 0 && selectedRow < filteredTasks.size) {
-                    val task = filteredTasks[selectedRow]
-                    showTaskDetails(task)
+                if (selectedRow >= 0 && selectedRow < filteredRecords.size) {
+                    val rec = filteredRecords[selectedRow]
+                    showRecordDetails(rec)
                 } else {
                     detailCardLayout.show(detailContainer, "EMPTY")
                 }
@@ -634,67 +748,31 @@ class LarkTaskPanel(private val project: Project) {
     private fun setupDetailPanel() {
         detailContainer.add(emptyDetailPanel, "EMPTY")
 
-        val contentBox = JBPanel<JBPanel<*>>()
-        contentBox.layout = BoxLayout(contentBox, BoxLayout.Y_AXIS)
-        contentBox.border = JBUI.Borders.empty(12)
+        val contentBox = JPanel(BorderLayout(0, 6))
+        contentBox.border = JBUI.Borders.empty(8)
 
-        val headerPanel = JPanel(BorderLayout())
-        headerPanel.add(detailKeyLabel, BorderLayout.NORTH)
-        headerPanel.add(detailTitleLabel, BorderLayout.CENTER)
+        val headerPanel = JPanel(BorderLayout(12, 0))
+        val titleBox = JPanel(FlowLayout(FlowLayout.LEFT, 8, 2))
+        titleBox.add(detailKeyLabel)
+        titleBox.add(detailTitleLabel)
+
+        val openWebBtn = JButton("Open in Lark Base", AllIcons.General.Web).apply {
+            addActionListener {
+                val url = LarkAppSettingsState.getInstance().larkUrl.ifEmpty { "https://www.larksuite.com" }
+                BrowserUtil.browse(url)
+            }
+        }
+
+        headerPanel.add(titleBox, BorderLayout.WEST)
+        headerPanel.add(openWebBtn, BorderLayout.EAST)
         headerPanel.border = JBUI.Borders.customLineBottom(JBColor.border())
 
-        val metaPanel = JPanel(FlowLayout(FlowLayout.LEFT, 12, 6))
-        metaPanel.add(JBLabel("Type:"))
-        metaPanel.add(detailTypeLabel)
-        metaPanel.add(JBLabel("Status:"))
-        metaPanel.add(detailStatusLabel)
-        metaPanel.add(JBLabel("Priority:"))
-        metaPanel.add(detailPriorityLabel)
-        metaPanel.add(JBLabel("Assignee:"))
-        metaPanel.add(detailAssigneeLabel)
-
-        val descLabel = JBLabel("Description:").apply { font = font.deriveFont(Font.BOLD) }
-        val descScroll = JBScrollPane(detailDescriptionArea).apply {
+        val detailScroll = JBScrollPane(detailFieldsBox).apply {
             border = BorderFactory.createEtchedBorder()
         }
 
-        val actionBox = JPanel(FlowLayout(FlowLayout.LEFT, 8, 6))
-        val markDoneBtn = JButton("Mark Done", AllIcons.Actions.Checked)
-        val markProgressBtn = JButton("In Progress", AllIcons.Actions.Execute)
-        val openWebBtn = JButton("Open in Lark Base", AllIcons.General.Web)
-
-        markDoneBtn.addActionListener {
-            selectedTask?.let {
-                apiService.updateTaskStatus(it.id, "Done")
-                loadDashboardData()
-            }
-        }
-
-        markProgressBtn.addActionListener {
-            selectedTask?.let {
-                apiService.updateTaskStatus(it.id, "In Progress")
-                loadDashboardData()
-            }
-        }
-
-        openWebBtn.addActionListener {
-            val url = LarkAppSettingsState.getInstance().larkUrl.ifEmpty { "https://www.larksuite.com" }
-            BrowserUtil.browse(url)
-        }
-
-        actionBox.add(markDoneBtn)
-        actionBox.add(markProgressBtn)
-        actionBox.add(openWebBtn)
-
-        contentBox.add(headerPanel)
-        contentBox.add(Box.createVerticalStrut(8))
-        contentBox.add(metaPanel)
-        contentBox.add(Box.createVerticalStrut(12))
-        contentBox.add(descLabel)
-        contentBox.add(Box.createVerticalStrut(4))
-        contentBox.add(descScroll)
-        contentBox.add(Box.createVerticalStrut(12))
-        contentBox.add(actionBox)
+        contentBox.add(headerPanel, BorderLayout.NORTH)
+        contentBox.add(detailScroll, BorderLayout.CENTER)
 
         activeDetailPanel.add(contentBox, BorderLayout.CENTER)
         detailContainer.add(activeDetailPanel, "ACTIVE")
@@ -703,69 +781,162 @@ class LarkTaskPanel(private val project: Project) {
     }
 
     private fun loadDashboardData() {
-        allTasks = apiService.fetchTasks()
-        applyFilters()
+        val state = LarkAppSettingsState.getInstance()
+        val appToken = state.appToken
+        val userToken = state.userToken
+
+        if (appToken.isBlank() || userToken.isBlank()) return
+
+        refreshButton.isEnabled = false
+        paginationLabel.text = "⏳ Fetching tables from Lark Base..."
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = apiService.fetchTables(appToken, userToken)
+            SwingUtilities.invokeLater {
+                refreshButton.isEnabled = true
+                if (result.isSuccess) {
+                    currentTables = result.getOrNull() ?: emptyList()
+                    updateTableSelectorDropdown()
+                    if (currentTables.isNotEmpty()) {
+                        val targetTable = currentTables.find { it.tableId == state.tableId } ?: currentTables.first()
+                        activeTableId = targetTable.tableId
+                        state.tableId = activeTableId
+                        loadTableRecords(activeTableId)
+                    } else {
+                        paginationLabel.text = "No tables found in this Base."
+                    }
+                } else {
+                    val err = result.exceptionOrNull()?.message ?: "Failed to fetch tables"
+                    paginationLabel.text = "❌ $err"
+                }
+            }
+        }
+    }
+
+    private fun updateTableSelectorDropdown() {
+        val items = currentTables.map { "📋 ${it.name}" }.toTypedArray()
+        tableSelectorCombo.model = DefaultComboBoxModel(if (items.isNotEmpty()) items else arrayOf("No Tables Found"))
+        val selectedIndex = currentTables.indexOfFirst { it.tableId == activeTableId }
+        if (selectedIndex >= 0) {
+            tableSelectorCombo.selectedIndex = selectedIndex
+        }
+    }
+
+    private fun loadTableRecords(tableId: String) {
+        val state = LarkAppSettingsState.getInstance()
+        val appToken = state.appToken
+        val userToken = state.userToken
+
+        if (appToken.isBlank() || tableId.isBlank() || userToken.isBlank()) return
+
+        paginationLabel.text = "⏳ Fetching live records from Lark Base..."
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = apiService.fetchRecords(appToken, tableId, userToken)
+            SwingUtilities.invokeLater {
+                if (result.isSuccess) {
+                    val pair = result.getOrNull()!!
+                    currentFields = pair.first
+                    currentRecords = pair.second
+                    applyFilters()
+                } else {
+                    val err = result.exceptionOrNull()?.message ?: "Failed to fetch records"
+                    paginationLabel.text = "❌ $err"
+                }
+            }
+        }
     }
 
     private fun applyFilters() {
-        val selectedType = typeCombo.selectedItem?.toString() ?: "All Types"
-        val selectedPriority = priorityCombo.selectedItem?.toString() ?: "All Priorities"
-        val selectedStatus = statusCombo.selectedItem?.toString() ?: "All Statuses"
-        val selectedAssignee = assigneeCombo.selectedItem?.toString() ?: "ANY"
         val query = searchField.text.trim().lowercase()
 
-        filteredTasks = allTasks.filter { task ->
-            val matchType = selectedType == "All Types" || task.type.equals(selectedType, ignoreCase = true)
-            val matchPriority = selectedPriority == "All Priorities" || task.priority.equals(selectedPriority, ignoreCase = true)
-            val matchStatus = selectedStatus == "All Statuses" || task.status.equals(selectedStatus, ignoreCase = true)
-            val matchAssignee = selectedAssignee == "ANY" || task.assignee.contains(selectedAssignee, ignoreCase = true)
-            val matchQuery = query.isEmpty() || task.key.lowercase().contains(query) || task.summary.lowercase().contains(query)
-
-            matchType && matchPriority && matchStatus && matchAssignee && matchQuery
+        filteredRecords = currentRecords.filter { rec ->
+            if (query.isEmpty()) true
+            else rec.fields.values.any { valStr -> formatFieldValue(valStr).lowercase().contains(query) }
         }
 
-        tableModel.rowCount = 0
-        filteredTasks.forEach { task ->
-            tableModel.addRow(arrayOf(
-                task.key,
-                task.type,
-                task.summary,
-                task.status,
-                task.assignee,
-                task.priority
-            ))
+        if (currentFields.isEmpty() && currentRecords.isNotEmpty()) {
+            val recordKeys = currentRecords.flatMap { it.fields.keys }.distinct()
+            if (recordKeys.isNotEmpty()) {
+                currentFields = recordKeys.map { key ->
+                    LarkFieldInfo(fieldId = key, fieldName = key, type = 1)
+                }
+            }
         }
 
-        paginationLabel.text = "Showing ${filteredTasks.size} issues (Page 1)"
+        val headers = if (currentFields.isNotEmpty()) {
+            currentFields.map { it.fieldName }.toTypedArray()
+        } else {
+            arrayOf("Record ID", "Data")
+        }
 
-        if (filteredTasks.isNotEmpty()) {
+        tableModel.setDataVector(emptyArray(), headers)
+
+        filteredRecords.forEach { rec ->
+            val rowData = if (currentFields.isNotEmpty()) {
+                currentFields.map { field -> formatFieldValue(rec.fields[field.fieldName]) }.toTypedArray()
+            } else {
+                arrayOf(rec.recordId, rec.fields.toString())
+            }
+            tableModel.addRow(rowData)
+        }
+
+        paginationLabel.text = "Showing ${filteredRecords.size} live records from Lark Base"
+
+        if (filteredRecords.isNotEmpty()) {
             table.setRowSelectionInterval(0, 0)
-            showTaskDetails(filteredTasks[0])
+            showRecordDetails(filteredRecords[0])
         } else {
             detailCardLayout.show(detailContainer, "EMPTY")
         }
     }
 
-    private fun showTaskDetails(task: LarkTaskItem) {
-        selectedTask = task
-        detailKeyLabel.text = task.key
-        detailTitleLabel.text = task.summary
-        detailTypeLabel.text = task.type
-        detailStatusLabel.text = task.status
-        detailPriorityLabel.text = task.priority
-        detailAssigneeLabel.text = task.assignee
-        detailDescriptionArea.text = task.description.ifEmpty { "No description provided." }
+    private fun formatFieldValue(value: Any?): String {
+        if (value == null) return ""
+        return when (value) {
+            is Boolean -> if (value) "☑ Yes" else "☐ No"
+            is String -> value
+            is Number -> value.toString()
+            is List<*> -> {
+                value.mapNotNull { item ->
+                    when (item) {
+                        is Map<*, *> -> item["name"]?.toString() ?: item["text"]?.toString() ?: item["full_name"]?.toString() ?: item.toString()
+                        else -> item?.toString()
+                    }
+                }.joinToString(", ")
+            }
+            is Map<*, *> -> {
+                value["name"]?.toString() ?: value["text"]?.toString() ?: value["text_content"]?.toString() ?: value.toString()
+            }
+            else -> value.toString()
+        }
+    }
+
+    private fun showRecordDetails(record: LarkRecord) {
+        selectedRecord = record
+        detailKeyLabel.text = "Record ID: ${record.recordId}"
+        val firstVal = currentFields.firstOrNull()?.let { formatFieldValue(record.fields[it.fieldName]) }
+        detailTitleLabel.text = if (!firstVal.isNull_or_empty()) firstVal else record.recordId
+
+        detailFieldsBox.removeAll()
+        for (field in currentFields) {
+            val valStr = formatFieldValue(record.fields[field.fieldName])
+            val rowPanel = JPanel(BorderLayout(8, 4)).apply {
+                border = JBUI.Borders.empty(4, 0)
+                val lbl = JBLabel("${field.fieldName}:").apply { font = font.deriveFont(Font.BOLD) }
+                val valLbl = JBLabel(if (valStr.isNotEmpty()) valStr else "(empty)")
+                add(lbl, BorderLayout.WEST)
+                add(valLbl, BorderLayout.CENTER)
+            }
+            detailFieldsBox.add(rowPanel)
+        }
+        detailFieldsBox.revalidate()
+        detailFieldsBox.repaint()
 
         detailCardLayout.show(detailContainer, "ACTIVE")
     }
 
-    private fun selectTaskInTable(task: LarkTaskItem) {
-        val index = filteredTasks.indexOfFirst { it.id == task.id }
-        if (index != -1) {
-            table.setRowSelectionInterval(index, index)
-            showTaskDetails(task)
-        }
-    }
+    private fun String?.isNull_or_empty(): Boolean = this == null || this.isEmpty()
 
     private fun createToolbar(): com.intellij.openapi.actionSystem.ActionToolbar {
         val actionGroup = DefaultActionGroup().apply {

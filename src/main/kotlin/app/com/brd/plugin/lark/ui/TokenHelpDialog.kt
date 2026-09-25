@@ -22,15 +22,15 @@ class TokenHelpDialog(project: Project?) : DialogWrapper(project) {
         }
 
         return panel {
-            group("How to Generate Your Access Token") {
+            group("How to Get Your Access Token") {
                 row {
                     label("<html><ol>" +
                             "<li>Open the <b>Lark Developer Console</b> (open.larksuite.com/app).</li>" +
-                            "<li>Select your existing App or create a new internal app.</li>" +
-                            "<li>In the left menu, click <b>Permissions & Scopes</b>.</li>" +
-                            "<li>Grant the <b>View, edit, and manage Bitable</b> permission (<code>bitable:app</code>).</li>" +
-                            "<li>Go to <b>Credentials & Test Notes</b> and copy your <b>User Access Token</b>.</li>" +
-                            "<li>Paste the token into the Personal Access Token field in Android Studio.</li>" +
+                            "<li>Select your App, go to <b>Permissions & Scopes</b>, and add <code>bitable:app</code> scope.</li>" +
+                            "<li>Go to <b>Credentials & Test Notes</b> or <b>API Explorer</b>.</li>" +
+                            "<li><b>Tenant Access Token</b> (<code>t-...</code>): Copy this if your app is 'Pending release' or if Personal Token returns HTTP 400.</li>" +
+                            "<li><b>User Access Token</b> (<code>u-...</code>): Copy this if your app is published with user permissions.</li>" +
+                            "<li>Paste the token into the access token field in Android Studio.</li>" +
                             "</ol></html>")
                 }
             }

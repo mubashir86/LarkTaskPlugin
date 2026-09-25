@@ -5,33 +5,36 @@
     <category>Tools Integration</category>
 
     <description><![CDATA[
-      <p><b>Lark Connector</b> seamlessly embeds your <b>Lark Base</b> or <b>Feishu</b> task board directly inside Android Studio and IntelliJ IDEA.</p>
+      <p><b>Lark Connector</b> connects your <b>Lark Base</b> or <b>Feishu Bitable</b> task boards directly inside Android Studio and IntelliJ IDEA with live REST API synchronization.</p>
 
       <h3>Key Features</h3>
       <ul>
-        <li><b>Embedded Chromium Engine</b>: Fast, responsive Lark Base task tracking right inside your IDE.</li>
-        <li><b>Configurable Workspace URL</b>: Easily set your custom Lark Base, Task Board, or Feed URL via <code>Settings -> Tools -> Lark Connector</code>.</li>
-        <li><b>Navigation Controls</b>: Quick access toolbar to refresh views, navigate home, open in external browser, or adjust settings.</li>
-        <li><b>Dark Theme Synergy</b>: Automatic Dark Theme parameter injection matching Android Studio's editor theme.</li>
-        <li><b>Zero Context Switching</b>: Manage, update, and track daily Android development tasks without leaving your code editor.</li>
+        <li><b>Live Lark Bitable API Sync</b>: Real-time dynamic fetch of tables, fields, and records directly from Lark Base Open APIs.</li>
+        <li><b>Dynamic Table Schema & Columns</b>: Automatically renders all actual columns (e.g., OKRs, Task Leaders, Start/End Dates, Checkboxes) as separate headers.</li>
+        <li><b>Schema-Aware Add Record Dialog</b>: Create live records on Lark Base with option dropdowns, person selectors, date parsing, and numeric validation.</li>
+        <li><b>Auto-Refresh Timer</b>: Configurable automatic background refresh interval (Off, 1 Min, 5 Min, 10 Min).</li>
+        <li><b>Multi-Base Support</b>: Connect and manage multiple Lark Base sheets seamlessly from a single unified dropdown.</li>
+        <li><b>Diagnostics & Error Logging</b>: Detailed log inspector and one-click copy tool for API troubleshooting.</li>
       </ul>
 
-      <h3>Getting Started</h3>
+      <h3>Setup & Usage Guide</h3>
       <ol>
-        <li>Install the plugin and open any project in Android Studio or IntelliJ.</li>
-        <li>Click the <b>Lark Connector</b> tool window tab on the left sidebar.</li>
-        <li>Configure your team's Lark Base URL in <b>Settings / Preferences -> Tools -> Lark Connector</b>.</li>
+        <li>Create an internal App in <b>Lark Developer Console</b> (<code>open.larksuite.com/app</code>).</li>
+        <li>In <b>Permissions & Scopes</b>, grant the <code>bitable:app</code> permission.</li>
+        <li><b>Important</b>: Click <b>Create Version</b> and publish your app so permission scopes take effect!</li>
+        <li>Copy your <b>Tenant Access Token</b> (<code>t-...</code>) from Credentials & Test Notes or API Explorer.</li>
+        <li>Open Android Studio, launch <b>Lark Connector</b> tool window, paste your Lark Base URL and Tenant Access Token.</li>
       </ol>
     ]]></description>
 
     <change-notes><![CDATA[
       <h4>Version 1.0.0</h4>
       <ul>
-        <li>Initial release of Lark Connector plugin for JetBrains IDEs.</li>
-        <li>Added configurable Lark Base / Feishu URL settings panel.</li>
-        <li>Added JCEF Chromium browser integration with quick action toolbar (Refresh, Home, External Browser, Settings).</li>
-        <li>Added automatic dark mode URL parameter synchronization.</li>
-        <li>Added fallback support for environments without embedded JCEF.</li>
+        <li>Initial release with full Lark Base Bitable Open API integration.</li>
+        <li>Added dynamic table selector and dynamic column schema rendering.</li>
+        <li>Added schema-aware Add Record dialog with dropdown choices, date parsing, and number validation.</li>
+        <li>Added background Auto-Refresh timer options (Off, 1 Min, 5 Min, 10 Min).</li>
+        <li>Added async connection testing, multi-base sheet selector, and error diagnostics logging.</li>
       </ul>
     ]]></change-notes>
 

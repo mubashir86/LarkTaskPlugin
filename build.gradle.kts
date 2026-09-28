@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.tss.lark"
-version = "1.0.0"
+version = "1.0.2"
 
 kotlin {
     jvmToolchain(17)
@@ -20,7 +20,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        create("IC", "2023.3.3")
+        create("IC", "2024.1.4")
         bundledPlugin("com.intellij.java")
     }
 }
@@ -28,7 +28,8 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild.set("233.0")
+            sinceBuild.set("241.0")
+            untilBuild.set("262.*")
         }
     }
 

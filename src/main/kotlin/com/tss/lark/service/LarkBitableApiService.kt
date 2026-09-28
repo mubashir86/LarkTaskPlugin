@@ -1,5 +1,6 @@
 package com.tss.lark.service
 
+import com.tss.lark.model.LarkApiLog
 import com.tss.lark.model.LarkFieldInfo
 import com.tss.lark.model.LarkFieldOption
 import com.tss.lark.model.LarkRecord
@@ -123,11 +124,21 @@ class LarkBitableApiService {
 
             return when (code) {
                 200 -> {
+                    val errorDetail = extractLarkErrorMsg(responseText)
+                    if (errorDetail != null && errorDetail.startsWith("Lark Code") && !errorDetail.contains("Code 0:")) {
+                        val msg = buildString {
+                            append("Lark API Error")
+                            append(": ").append(errorDetail)
+                        }
+                        return LarkAuthResult(false, 400, msg, rawResponseBody = responseText, detailLog = detailLog)
+                    }
                     var resolvedTableId = tableId
-                    if (responseText.contains("\"table_id\"")) {
-                        val extracted = responseText.substringAfter("\"table_id\":\"").substringBefore("\"")
-                        if (extracted.isNotEmpty()) {
-                            resolvedTableId = extracted
+                    if (resolvedTableId.isEmpty() || resolvedTableId == "tbl1") {
+                        if (responseText.contains("\"table_id\"")) {
+                            val extracted = responseText.substringAfter("\"table_id\":\"").substringBefore("\"")
+                            if (extracted.isNotEmpty()) {
+                                resolvedTableId = extracted
+                            }
                         }
                     }
 
@@ -304,12 +315,21 @@ class LarkBitableApiService {
             } else {
                 conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
             }
+            LarkApiLog.lastFetchTablesResponse = "HTTP $code\n$text"
 
             if (code == 200) {
-                val tables = mutableListOf<LarkTableInfo>()
                 val json = JsonParser.parseString(text).asJsonObject
+                val larkCode = json.get("code")?.asInt ?: 0
+                if (larkCode != 0) {
+                    val msg = json.get("msg")?.asString ?: "Unknown error"
+                    return Result.failure(Exception("Lark API Error [$larkCode]: $msg"))
+                }
+                val tables = mutableListOf<LarkTableInfo>()
                 val data = json.getAsJsonObject("data")
-                if (data != null && data.has("items")) {
+                if (data == null) {
+                    return Result.failure(Exception("Lark API Error: Missing 'data' object. Raw response: $text"))
+                }
+                if (data.has("items")) {
                     val items = data.getAsJsonArray("items")
                     for (item in items) {
                         val obj = item.asJsonObject
@@ -345,12 +365,21 @@ class LarkBitableApiService {
             } else {
                 conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
             }
+            LarkApiLog.lastFetchTablesResponse = "HTTP $code\n$text"
 
             if (code == 200) {
-                val fields = mutableListOf<LarkFieldInfo>()
                 val json = JsonParser.parseString(text).asJsonObject
+                val larkCode = json.get("code")?.asInt ?: 0
+                if (larkCode != 0) {
+                    val msg = json.get("msg")?.asString ?: "Unknown error"
+                    return Result.failure(Exception("Lark API Error [$larkCode]: $msg"))
+                }
+                val fields = mutableListOf<LarkFieldInfo>()
                 val data = json.getAsJsonObject("data")
-                if (data != null && data.has("items")) {
+                if (data == null) {
+                    return Result.failure(Exception("Lark API Error: Missing 'data' object. Raw response: $text"))
+                }
+                if (data.has("items")) {
                     val items = data.getAsJsonArray("items")
                     for (item in items) {
                         val obj = item.asJsonObject
@@ -360,15 +389,18 @@ class LarkBitableApiService {
                         val isPrimary = obj.get("is_primary")?.asBoolean ?: false
 
                         val optionsList = mutableListOf<LarkFieldOption>()
-                        val propObj = obj.getAsJsonObject("property")
-                        if (propObj != null && propObj.has("options")) {
-                            val optsArray = propObj.getAsJsonArray("options")
-                            for (opt in optsArray) {
-                                val optObj = opt.asJsonObject
-                                val optId = optObj.get("id")?.asString ?: ""
-                                val optName = optObj.get("name")?.asString ?: ""
-                                if (optName.isNotEmpty()) {
-                                    optionsList.add(LarkFieldOption(optId, optName))
+                        val propElement = obj.get("property")
+                        if (propElement != null && !propElement.isJsonNull && propElement.isJsonObject) {
+                            val propObj = propElement.asJsonObject
+                            if (propObj.has("options")) {
+                                val optsArray = propObj.getAsJsonArray("options")
+                                for (opt in optsArray) {
+                                    val optObj = opt.asJsonObject
+                                    val optId = optObj.get("id")?.asString ?: ""
+                                    val optName = optObj.get("name")?.asString ?: ""
+                                    if (optName.isNotEmpty()) {
+                                        optionsList.add(LarkFieldOption(optId, optName))
+                                    }
                                 }
                             }
                         }
@@ -391,6 +423,9 @@ class LarkBitableApiService {
 
     fun fetchRecords(appToken: String, tableId: String, token: String): Result<Pair<List<LarkFieldInfo>, List<LarkRecord>>> {
         val fieldsResult = fetchFields(appToken, tableId, token)
+        if (fieldsResult.isFailure) {
+            return Result.failure(fieldsResult.exceptionOrNull() ?: Exception("Unknown error fetching fields"))
+        }
         val fields = fieldsResult.getOrDefault(emptyList())
 
         val url = "https://open.larksuite.com/open-apis/bitable/v1/apps/$appToken/tables/$tableId/records?page_size=100"
@@ -408,12 +443,21 @@ class LarkBitableApiService {
             } else {
                 conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
             }
+            LarkApiLog.lastFetchRecordsResponse = "HTTP $code\n$text"
 
             if (code == 200) {
-                val records = mutableListOf<LarkRecord>()
                 val json = JsonParser.parseString(text).asJsonObject
+                val larkCode = json.get("code")?.asInt ?: 0
+                if (larkCode != 0) {
+                    val msg = json.get("msg")?.asString ?: "Unknown error"
+                    return Result.failure(Exception("Lark API Error [$larkCode]: $msg"))
+                }
+                val records = mutableListOf<LarkRecord>()
                 val data = json.getAsJsonObject("data")
-                if (data != null && data.has("items")) {
+                if (data == null) {
+                    return Result.failure(Exception("Lark API Error: Missing 'data' object. Raw response: $text"))
+                }
+                if (data.has("items")) {
                     val items = data.getAsJsonArray("items")
                     for (item in items) {
                         val obj = item.asJsonObject
@@ -559,6 +603,12 @@ class LarkBitableApiService {
             }
 
             if (code in 200..299) {
+                val json = JsonParser.parseString(text).asJsonObject
+                val larkCode = json.get("code")?.asInt ?: 0
+                if (larkCode != 0) {
+                    val msg = json.get("msg")?.asString ?: "Unknown error"
+                    return Result.failure(Exception("Lark API Error [$larkCode]: $msg"))
+                }
                 Result.success(true)
             } else {
                 Result.failure(Exception("HTTP $code: $text"))

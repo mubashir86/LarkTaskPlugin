@@ -1,5 +1,6 @@
 package com.tss.lark
 
+import com.tss.lark.model.LarkApiLog
 import com.tss.lark.model.LarkFieldInfo
 import com.tss.lark.model.LarkRecord
 import com.tss.lark.model.LarkTableInfo
@@ -128,6 +129,7 @@ class LarkTaskPanel(private val project: Project) {
     private val createButton = JButton("+ Add Record", AllIcons.General.Add)
     private val addBaseButton = JButton("+ Add Base Sheet", AllIcons.General.Add)
     private val disconnectButton = JButton("Disconnect", AllIcons.Actions.Exit)
+    private val debugButton = JButton("API Logs", AllIcons.General.Warning)
 
     // Table
     private val tableModel = DefaultTableModel()
@@ -593,6 +595,7 @@ class LarkTaskPanel(private val project: Project) {
         filterRow2.add(createButton)
         filterRow2.add(addBaseButton)
         filterRow2.add(disconnectButton)
+        filterRow2.add(debugButton)
 
         topPanel.add(filterRow1)
         topPanel.add(filterRow2)
@@ -688,6 +691,16 @@ class LarkTaskPanel(private val project: Project) {
                 LarkAppSettingsNotifier.notifySettingsChanged()
                 checkAuthState()
             }
+        }
+
+        debugButton.addActionListener {
+            val logs = buildString {
+                append("=== Fetch Tables Response ===\n")
+                append(LarkApiLog.lastFetchTablesResponse)
+                append("\n\n=== Fetch Records Response ===\n")
+                append(LarkApiLog.lastFetchRecordsResponse)
+            }
+            Messages.showMultilineInputDialog(project, "Lark API Diagnostics", "API Logs", logs, null, null)
         }
 
         createButton.addActionListener {
@@ -808,6 +821,7 @@ class LarkTaskPanel(private val project: Project) {
                 } else {
                     val err = result.exceptionOrNull()?.message ?: "Failed to fetch tables"
                     paginationLabel.text = "❌ $err"
+                    Messages.showErrorDialog(project, err, "Lark API Error: Fetch Tables")
                 }
             }
         }
@@ -842,6 +856,7 @@ class LarkTaskPanel(private val project: Project) {
                 } else {
                     val err = result.exceptionOrNull()?.message ?: "Failed to fetch records"
                     paginationLabel.text = "❌ $err"
+                    Messages.showErrorDialog(project, err, "Lark API Error: Fetch Records")
                 }
             }
         }

@@ -20,7 +20,7 @@
       <h3>Setup & Usage Guide</h3>
       <ol>
         <li>Create an internal App in <b>Lark Developer Console</b> (<code>open.larksuite.com/app</code>).</li>
-        <li>In <b>Permissions & Scopes</b>, grant the <code>bitable:app</code> permission.</li>
+        <li>In <b>Permissions & Scopes</b>, grant both <code>bitable:app</code> and <code>bitable:app:readonly</code> permissions.</li>
         <li><b>Important</b>: Click <b>Create Version</b> and publish your app so permission scopes take effect!</li>
         <li>Copy your <b>Tenant Access Token</b> (<code>t-...</code>) from Credentials & Test Notes or API Explorer.</li>
         <li>Open Android Studio, launch <b>Lark Connector</b> tool window, paste your Lark Base URL and Tenant Access Token.</li>

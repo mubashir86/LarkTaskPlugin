@@ -25,7 +25,7 @@
 1. Go to [Lark Developer Console](https://open.larksuite.com/app).
 2. Click **Create Custom App** (or select an existing app).
 3. In the left menu, click **Permissions & Scopes**.
-4. Search for `bitable:app` and grant **View, comment, edit and manage Base** scope (add for both *Tenant Token* and *User Token*).
+4. Search for and add both `bitable:app` and `bitable:app:readonly` permissions (add for both *Tenant Token* and *User Token*).
 
 ### Step 2: Publish Your App Version (Crucial Step!)
 > ⚠️ **Important**: Newly added permission scopes do NOT take effect until an app version is published!

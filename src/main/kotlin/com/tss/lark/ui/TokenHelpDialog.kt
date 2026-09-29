@@ -26,7 +26,7 @@ class TokenHelpDialog(project: Project?) : DialogWrapper(project) {
                 row {
                     label("<html><ol>" +
                             "<li>Open the <b>Lark Developer Console</b> (open.larksuite.com/app).</li>" +
-                            "<li>Select your App, go to <b>Permissions & Scopes</b>, and add <code>bitable:app</code> scope.</li>" +
+                            "<li>Select your App, go to <b>Permissions & Scopes</b>, and add both <code>bitable:app</code> and <code>bitable:app:readonly</code> scopes.</li>" +
                             "<li>Go to <b>Credentials & Test Notes</b> or <b>API Explorer</b>.</li>" +
                             "<li><b>Tenant Access Token</b> (<code>t-...</code>): Copy this if your app is 'Pending release' or if Personal Token returns HTTP 400.</li>" +
                             "<li><b>User Access Token</b> (<code>u-...</code>): Copy this if your app is published with user permissions.</li>" +

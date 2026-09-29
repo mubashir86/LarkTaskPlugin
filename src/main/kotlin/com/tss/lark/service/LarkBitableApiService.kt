@@ -182,7 +182,7 @@ class LarkBitableApiService {
                         append("HTTP 403 Forbidden")
                         if (errorDetail != null) append(": ").append(errorDetail)
                         else append(": Missing Bitable permissions or app is in 'Pending release' mode.")
-                        append("\n💡 Tip: Add 'bitable:app' scope in Lark Developer Console and test with a Tenant Access Token (t-...).")
+                        append("\n💡 Tip: Add both 'bitable:app' and 'bitable:app:readonly' scopes in Lark Developer Console and test with a Tenant Access Token (t-...).")
                     }
                     LarkAuthResult(false, 403, msg, rawResponseBody = responseText, detailLog = detailLog)
                 }

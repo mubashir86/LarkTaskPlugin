@@ -350,7 +350,7 @@ class LarkTaskPanel(private val project: Project) {
 
         val guideHeading = JBLabel("Where do I get my token?").apply { font = font.deriveFont(Font.BOLD, 12f) }
         val guideText = JBLabel("<html><b>1.</b> Open Lark Developer Console (open.larksuite.com/app).<br/>" +
-                "<b>2.</b> Select your App, go to <b>Permissions & Scopes</b>, and add <code>bitable:app</code>.<br/>" +
+                "<b>2.</b> Select your App, go to <b>Permissions & Scopes</b>, and add both <code>bitable:app</code> and <code>bitable:app:readonly</code>.<br/>" +
                 "<b>3.</b> Copy your <b>Tenant Access Token</b> (<code>t-...</code>) or <b>User Access Token</b> (<code>u-...</code>) from Test Notes / API Explorer and paste it above.<br/>" +
                 "<i>💡 Note: If Personal/User Token gives 400 error (e.g. App is 'Pending release'), copy a Tenant Access Token (t-...).</i></html>").apply {
             foreground = JBUI.CurrentTheme.Label.disabledForeground()

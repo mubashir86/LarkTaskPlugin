@@ -5,9 +5,7 @@ import com.tss.lark.model.LarkFieldInfo
 import com.tss.lark.model.LarkFieldOption
 import com.tss.lark.model.LarkRecord
 import com.tss.lark.model.LarkTableInfo
-import com.tss.lark.model.LarkTaskItem
 import com.tss.lark.settings.LarkAppSettingsState
-import com.tss.lark.settings.SavedLarkBase
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.intellij.openapi.components.Service
@@ -31,9 +29,6 @@ data class LarkAuthResult(
 
 @Service(Service.Level.APP)
 class LarkBitableApiService {
-
-    private val userTasks = mutableListOf<LarkTaskItem>()
-    private var nextKeyNumber = 101
 
     fun parseUrl(rawUrl: String): Pair<String, String>? {
         if (rawUrl.isBlank()) return null
@@ -256,36 +251,6 @@ class LarkBitableApiService {
         }
     }
 
-    fun fetchTasks(): List<LarkTaskItem> {
-        return userTasks.toList()
-    }
-
-    fun addTask(type: String, summary: String, status: String, assignee: String, priority: String, description: String): LarkTaskItem {
-        val newKey = "LARK-$nextKeyNumber"
-        nextKeyNumber++
-        val newTask = LarkTaskItem(
-            id = "rec_${System.currentTimeMillis()}",
-            key = newKey,
-            type = type,
-            summary = summary,
-            status = status,
-            assignee = assignee,
-            priority = priority,
-            description = description,
-            createdTime = "2026-09-25"
-        )
-        userTasks.add(0, newTask)
-        return newTask
-    }
-
-    fun updateTaskStatus(taskId: String, newStatus: String) {
-        val index = userTasks.indexOfFirst { it.id == taskId }
-        if (index != -1) {
-            val old = userTasks[index]
-            userTasks[index] = old.copy(status = newStatus)
-        }
-    }
-
     fun disconnect() {
         val state = LarkAppSettingsState.getInstance()
         state.savedBases.clear()
@@ -296,7 +261,6 @@ class LarkBitableApiService {
         state.userToken = ""
         state.appId = ""
         state.appSecret = ""
-        userTasks.clear()
     }
 
     fun fetchTables(appToken: String, token: String): Result<List<LarkTableInfo>> {
@@ -548,7 +512,7 @@ class LarkBitableApiService {
             }
         }
 
-        return if (orderedFields.isNotEmpty()) orderedFields else fetchedFields
+        return orderedFields.ifEmpty { fetchedFields }
     }
 
     private fun parseJsonValue(element: com.google.gson.JsonElement?): Any? {
